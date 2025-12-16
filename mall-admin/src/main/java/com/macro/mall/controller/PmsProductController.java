@@ -2,6 +2,7 @@ package com.macro.mall.controller;
 
 import com.macro.mall.common.api.CommonPage;
 import com.macro.mall.common.api.CommonResult;
+import com.macro.mall.dto.PmsProductDetailResult;
 import com.macro.mall.dto.PmsProductParam;
 import com.macro.mall.dto.PmsProductQueryParam;
 import com.macro.mall.dto.PmsProductResult;
@@ -13,8 +14,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 商品管理Controller
@@ -142,5 +146,38 @@ public class PmsProductController {
         } else {
             return CommonResult.failed();
         }
+    }
+
+    @ApiOperation("获取商品详情")
+    @RequestMapping(value = "/detail/{id}", method = RequestMethod.GET)
+    @ResponseBody
+    public CommonResult<PmsProductDetailResult> getDetail(@PathVariable Long id) {
+        PmsProductDetailResult result = productService.getDetail(id);
+        return CommonResult.success(result);
+    }
+
+    @ApiOperation("查询库存预警商品")
+    @RequestMapping(value = "/lowStockList", method = RequestMethod.GET)
+    @ResponseBody
+    public CommonResult<CommonPage<PmsProduct>> getLowStockList(
+            PmsProductQueryParam productQueryParam,
+            @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
+            @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
+        List<PmsProduct> productList = productService.getLowStockList(productQueryParam, pageSize, pageNum);
+        return CommonResult.success(CommonPage.restPage(productList));
+    }
+
+    @ApiOperation("批量导入商品")
+    @RequestMapping(value = "/import", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult batchImport(@RequestParam("file") MultipartFile file) {
+        Map<String, Object> result = productService.batchImport(file);
+        return CommonResult.success(result);
+    }
+
+    @ApiOperation("批量导出商品")
+    @RequestMapping(value = "/export", method = RequestMethod.GET)
+    public void exportProduct(PmsProductQueryParam productQueryParam, HttpServletResponse response) {
+        productService.exportProduct(productQueryParam, response);
     }
 }

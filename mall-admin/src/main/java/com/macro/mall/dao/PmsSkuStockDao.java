@@ -2,21 +2,14 @@ package com.macro.mall.dao;
 
 import com.macro.mall.model.PmsSkuStock;
 import org.apache.ibatis.annotations.Param;
-
 import java.util.List;
 
 /**
- * 商品SKU管理自定义Dao
- * Created by macro on 2018/4/26.
+ * SKU库存自定义DAO
  */
 public interface PmsSkuStockDao {
     /**
-     * 批量插入操作
+     * 批量更新SKU价格
      */
-    int insertList(@Param("list")List<PmsSkuStock> skuStockList);
-
-    /**
-     * 批量插入或替换操作
-     */
-    int replaceList(@Param("list")List<PmsSkuStock> skuStockList);
+    int batchUpdatePrice(@Param("list") List<PmsSkuStock> skuStockList);
 }

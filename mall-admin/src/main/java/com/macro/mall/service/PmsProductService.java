@@ -70,4 +70,26 @@ public interface PmsProductService {
      * 根据商品名称或者货号模糊查询
      */
     List<PmsProduct> list(String keyword);
+
+    /**
+     * 获取商品详情(用于前台展示)
+     */
+    PmsProductDetailResult getDetail(Long id);
+
+    /**
+     * 查询库存预警商品列表
+     */
+    List<PmsProduct> getLowStockList(PmsProductQueryParam productQueryParam, Integer pageSize, Integer pageNum);
+
+    /**
+     * 批量导入商品
+     * @return Map包含: successCount(成功数), failCount(失败数), failDetails(失败详情列表)
+     */
+    @Transactional
+    java.util.Map<String, Object> batchImport(org.springframework.web.multipart.MultipartFile file);
+
+    /**
+     * 批量导出商品
+     */
+    void exportProduct(PmsProductQueryParam productQueryParam, javax.servlet.http.HttpServletResponse response);
 }

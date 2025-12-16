@@ -2,11 +2,11 @@ package com.macro.mall.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.excel.EasyExcel;
 import com.github.pagehelper.PageHelper;
 import com.macro.mall.dao.*;
-import com.macro.mall.dto.PmsProductParam;
-import com.macro.mall.dto.PmsProductQueryParam;
-import com.macro.mall.dto.PmsProductResult;
+import com.macro.mall.dto.*;
+import com.macro.mall.dto.excel.ProductImportDTO;
 import com.macro.mall.mapper.*;
 import com.macro.mall.model.*;
 import com.macro.mall.service.PmsProductService;
@@ -15,12 +15,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -298,6 +300,135 @@ public class PmsProductServiceImpl implements PmsProductService {
             productExample.or().andDeleteStatusEqualTo(0).andProductSnLike("%" + keyword + "%");
         }
         return productMapper.selectByExample(productExample);
+    }
+
+    @Override
+    public PmsProductDetailResult getDetail(Long id) {
+        return productDao.getDetailInfo(id);
+    }
+
+    @Override
+    public List<PmsProduct> getLowStockList(PmsProductQueryParam productQueryParam, Integer pageSize, Integer pageNum) {
+        PageHelper.startPage(pageNum, pageSize);
+        PmsProductExample example = new PmsProductExample();
+        PmsProductExample.Criteria criteria = example.createCriteria();
+        criteria.andDeleteStatusEqualTo(0);
+        example.setOrderByClause("id desc");
+        
+        if (productQueryParam != null) {
+            if (productQueryParam.getBrandId() != null) {
+                criteria.andBrandIdEqualTo(productQueryParam.getBrandId());
+            }
+            if (productQueryParam.getProductCategoryId() != null) {
+                criteria.andProductCategoryIdEqualTo(productQueryParam.getProductCategoryId());
+            }
+        }
+        
+        return productDao.selectLowStockList(example);
+    }
+
+    @Override
+    public Map<String, Object> batchImport(MultipartFile file) {
+        Map<String, Object> result = new HashMap<>();
+        List<String> failDetails = new ArrayList<>();
+        int successCount = 0;
+        int failCount = 0;
+        
+        try {
+            List<ProductImportDTO> dataList = EasyExcel.read(file.getInputStream())
+                .head(ProductImportDTO.class)
+                .sheet()
+                .doReadSync();
+            
+            for (int i = 0; i < dataList.size(); i++) {
+                ProductImportDTO dto = dataList.get(i);
+                try {
+                    PmsProductParam param = convertToProductParam(dto);
+                    int count = create(param);
+                    if (count > 0) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                        failDetails.add("第" + (i + 2) + "行: 创建失败");
+                    }
+                } catch (Exception e) {
+                    failCount++;
+                    failDetails.add("第" + (i + 2) + "行: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("文件解析失败: " + e.getMessage());
+        }
+        
+        result.put("successCount", successCount);
+        result.put("failCount", failCount);
+        result.put("failDetails", failDetails);
+        return result;
+    }
+
+    @Override
+    public void exportProduct(PmsProductQueryParam productQueryParam, HttpServletResponse response) {
+        try {
+            PmsProductExample example = new PmsProductExample();
+            PmsProductExample.Criteria criteria = example.createCriteria();
+            criteria.andDeleteStatusEqualTo(0);
+            
+            if (productQueryParam != null) {
+                if (productQueryParam.getPublishStatus() != null) {
+                    criteria.andPublishStatusEqualTo(productQueryParam.getPublishStatus());
+                }
+                if (productQueryParam.getVerifyStatus() != null) {
+                    criteria.andVerifyStatusEqualTo(productQueryParam.getVerifyStatus());
+                }
+                if (StrUtil.isNotEmpty(productQueryParam.getKeyword())) {
+                    criteria.andNameLike("%" + productQueryParam.getKeyword() + "%");
+                }
+                if (StrUtil.isNotEmpty(productQueryParam.getProductSn())) {
+                    criteria.andProductSnEqualTo(productQueryParam.getProductSn());
+                }
+                if (productQueryParam.getBrandId() != null) {
+                    criteria.andBrandIdEqualTo(productQueryParam.getBrandId());
+                }
+                if (productQueryParam.getProductCategoryId() != null) {
+                    criteria.andProductCategoryIdEqualTo(productQueryParam.getProductCategoryId());
+                }
+            }
+            
+            List<PmsProduct> productList = productMapper.selectByExample(example);
+            
+            response.setContentType("application/vnd.ms-excel");
+            response.setCharacterEncoding("utf-8");
+            String fileName = URLEncoder.encode("商品列表", "UTF-8");
+            response.setHeader("Content-disposition", "attachment;filename=" + fileName + ".xlsx");
+            
+            EasyExcel.write(response.getOutputStream(), PmsProduct.class)
+                .sheet("商品列表")
+                .doWrite(productList);
+        } catch (Exception e) {
+            throw new RuntimeException("导出失败: " + e.getMessage());
+        }
+    }
+
+    private PmsProductParam convertToProductParam(ProductImportDTO dto) {
+        PmsProductParam param = new PmsProductParam();
+        param.setName(dto.getName());
+        param.setSubTitle(dto.getSubTitle());
+        param.setBrandId(dto.getBrandId());
+        param.setProductCategoryId(dto.getProductCategoryId());
+        param.setProductSn(dto.getProductSn());
+        param.setPrice(new BigDecimal(dto.getPrice()));
+        param.setOriginalPrice(dto.getOriginalPrice() != null ? new BigDecimal(dto.getOriginalPrice()) : null);
+        param.setStock(dto.getStock());
+        param.setLowStock(dto.getLowStock());
+        param.setUnit(dto.getUnit());
+        param.setWeight(dto.getWeight() != null ? new BigDecimal(dto.getWeight()) : null);
+        param.setDescription(dto.getDescription());
+        param.setPublishStatus(0);
+        param.setVerifyStatus(0);
+        param.setDeleteStatus(0);
+        param.setNewStatus(0);
+        param.setRecommandStatus(0);
+        return param;
     }
 
     /**
