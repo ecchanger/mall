@@ -28,4 +28,11 @@
             #{item.spData,jdbcType=VARCHAR})
         </foreach>
     </insert>
+    <update id="batchUpdatePrice">
+        <foreach collection="list" item="item" separator=";">
+            UPDATE pms_sku_stock
+            SET price = #{item.price}
+            WHERE id = #{item.id}
+        </foreach>
+    </update>
 </mapper>
